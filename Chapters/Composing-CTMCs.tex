@@ -1,0 +1,181 @@
+\chapter{Joining CTMCs spanning different time periods}
+\label{chap:composing-CTMCs}
+
+The continuous time Markov chains we use to model a coalescence system captures a fixed number of populations with fixed rates of coalescence within them and migration between them. To construct more complex demographic scenarios---e.g.\ merging and splitting of populations or entering and leaving migration periods---we combine such CTMCs so different models are used for different time periods.
+
+If one CTMC, $\{\,X(t)\;|\;\tau>t\geq 0\,\}$, models the system before time $\tau$ and another, $\{\,Y(t)\;|\;t\geq\tau\,\}$, models the system after time $\tau$, we need a way of relating the states between the two CTMCs. If $\pi(t)$ is the state probability vector then it potentially assign probabilities to two different sets of states before and after time $\tau$, and we need a way of relating the vector $\pi(\tau-\epsilon)$ to the vector $\pi(\tau+\epsilon)$.
+
+A natural way to map vectors from one state space to another is using a matrix. If $\pi_X(t)$ is the probability vector for CTMC $X$ with $N_X$ states, and $\pi_Y(t)$ the probability vector for CTMC $Y$ with $N_Y$ states, we use $\pi_X(t)$ for the time interval $[0,\tau)$ and $\pi_Y(t)$ for the time interval $[\tau,\infty)$. We map between them by setting $\pi_Y(\tau)=\pi_X(\tau)\cdot\eta$ where $\eta$ is an $N_X\times N_Y$ matrix with non-negative values and where each row sums to $1$ so probabilities are preserved.
+
+The mapping matrix $\eta$ is part of the demographic model and to specify such mappings between two consecutive time periods we develop a small meta-language.
+
+\section{Mapping lineages and states}
+
+Recall from chapter~\ref{chap:modelling-2-ARGs} that the state of the coalescent system CTMC consist of a set of lineages $(p,\ell,r)$ where $p$ is a population and $\ell$ and $r$ are sets of samples. The simplest case for mapping states maps lineages individually. The mapping between states is then derived from the mapping between lineages simply by applying the lineage map over all lineages in the state. If we let
+\begin{displaymath}
+  \lambda: \populations\times\powerset(\samples)\times\powerset(\samples)
+      \to \populations\times\powerset(\samples)\times\powerset(\samples)
+\end{displaymath}
+denote the mapping between lineages we can define a mapping between states
+\begin{displaymath}
+  \sigma_\lambda: 
+  \powerset\Big(\populations\times\powerset(\samples)\times\powerset(\samples)\Big)
+      \to 
+  \powerset\Big(\populations\times\powerset(\samples)\times\powerset(\samples)\Big)
+\end{displaymath}
+between states by $\sigma_\lambda(x) = \big\{\,\lambda(l)\;\big|\;l\in x\,\big\}$.
+
+When the state mapping is defined this way---where one lineage is mapped to one lineage---each state in the first CTMC is mapped to exactly one state in the next CTMC. Each row in $\eta$ will therefore contain a single cell containing $1$ and all other cells will be $0$.
+
+
+\paragraph{An isolation model}
+
+To illustrate the mapping between CTMCs we consider the simple isolation model shown in figure~\ref{fig:demographic-model-isolation-model} and developed in \citet{Mailund:2011dv}. The model has two different time periods. From the present and back until time $\tau$ it consists of two isolated populations, $p_1$ and $p_2$, and further back in time it consists of a single ancestral population, $p_A$.
+
+\begin{figure}[tb]
+  \missingfigure{Illustration of isolation model}
+  \caption{A two-population isolation model. Two populations are completely isolated from the present and back to time $\tau$ in the past where they separated from an ancestral population.}
+  \label{fig:demographic-model-isolation-model}
+\end{figure}
+
+We naturally model this as two CTMCs. We have the isolation system $\{\,I(t)\;|\;\tau > t \geq 0\,\}$ and the ancestral system $\{\,A(t)\;|\;t\geq\tau\,\}$. We assume that we have one sample from each population, initially with the left and right nucleotides sitting on the same chromosome. In the isolation system the lineages can recombine and coalesce within the separate populations. At time $\tau$ the two populations merge (when looking back in time) and lineages from population $p_1$ and $p_2$ now must become lineages in the ancestral population, $p_A$, where they can recombine and coalesce and find common ancestors.
+
+Moving from the isolation system to the ancestral population we must map the lineages in the two separated populations into the ancestral population. In this model each state in the isolation system corresponds uniquely to one state in the ancestral system. The lineages are preserved; only the populations change. The lineage map is thus defined as $\lambda: (p_i,\ell,r) \mapsto (p_A,\ell,r)$ for $i=1,2$.
+
+
+\paragraph{An isolation-with-initial-migration model}
+
+As a second example consider the isolation-with-initial migration model in figure~\ref{fig:demographic-model-IIM-model}, developed in \cite{Mailund:2012ew}. This model is very similar to the isolation model but has three different time periods. An isolation period and an ancestral population as has the isolation model, and in between a period where lineages can migrate between the two populations.
+
+\begin{figure}[tb]
+  \missingfigure{Illustration of IIM model}
+  \caption{A two-population isolation-with-initial-migration model. Two populations are completely isolated from the present and back to time $\tau_1$ in the past. From $\tau_1$ to $\tau_2$ migration between the two populations is possible, and at $\tau_2$ the two populations merge into an ancestral population.}
+  \label{fig:demographic-model-IIM-model}
+\end{figure}
+
+Mapping from the isolation to the migration period and from migration to the ancestral population period in this model can also be done using just a lineage map.
+
+The state space for the isolation period is a subset of the state space of the migration period; it consists of the states where lineages originating in population $p_1$ remains in population $p_1$ and lineages originating in population $p_2$ remains in population $p_2$. The migration state space contains these states as well as those where lineages from $p_1$ are now in $p_2$ and those from $p_2$ are now in $p_1$. When entering the migration period from the isolation period, however, the lineages in population $p_1$ will still be in population $p_1$---they will need to migration before that changes---and lineages in population $p_2$ will still be in population $p_2$. The lineage map is therefore just the identity function: $\lambda: (p_i,\ell,r)\mapsto(p_i,\ell,r)$ for $i=1,2$.
+
+Going from the migration period to the ancestral population we need to map all lineages from the two separate populations into the ancestral, exactly as we did for the isolation model: $\lambda: (p_i,\ell,r)\mapsto (p_A,\ell,r)$ for $i=1,2$. The only difference from the isolation model is that the lineages that originated in one population can now be in another, so the corresponding state map, $\sigma_\lambda$, maps from a larger state space than in the case of the isolation model. Since we only have to worry about how individual lineages are mapped, the specification does not get more complicated by this.
+
+\paragraph{} % This is here to make some space between this and the example
+We cannot always construct the mapping matrix by a one-to-one translation of lineages. Even so, we are often far from the completely general case, where the mapping matrix $\eta$ can be completely arbitrary (within the restrictions preserving probabilities), since most modelling still considers lineages individually. Typically, a single lineage before the change in state space maps to different lineages after the change---with different probabilities---but still where each lineage is placed after the change is independent of all other lineages before the change.
+
+Consider a state with a single lineage $(p,\ell,r)$ in the system before the change. If this lineage can map to a number of different lineages, $(p_1,\ell_1,r_1)$, $(p_2,\ell_2,r_2)$, $\ldots$, $(p_k,\ell_k,r_k)$ in the system after the change, with probabilities $\alpha_1,\ldots,\alpha_k$, we want the system mapping $\eta$ to map the single lineage state to $k$ different states such that we transition into the state with lineage $(p_i,\ell_i,r_i)$ with probability $\alpha_i$.
+
+Consider now a state with two lineages, $(p,\ell,r)$ and $(q,s,t)$, where the first lineage maps into lineages $(p_1,\ell_1,r_1)$, $\ldots$, $(p_k,\ell_k,r_k)$ with probabilities $\alpha_1, \ldots, \alpha_k$ and $(q,s,t)$ maps into lineages $(q_1,s_1,t_1)$, $\ldots$, $(q_m,s_m,t_m)$ with probabilities $\beta_1,\ldots,\beta_m$. If the mapping of individual lineages are independent, then $\eta$ should map this state into a state with lineages $(p_i,\ell_i,r_i)$ and $(q_j,s_j,t_j)$ with probability $\alpha_i\cdot\beta_j$.
+
+In general we can consider a state, $S=\{(p_i,\ell_i,r_i)\,|\,i=1,\ldots,n\}$, and say that  each lineage $(p_i,\ell_i,r_i)\in S$ maps to a set of lineages $\lambda(p_i,\ell_i,r_i)=\{(p_{i,1},\ell_{i,1},r_{i,1}),\ldots,(p_{i,k},\ell_{i,k},r_{i,k})\}$ and a set of probabilities $\{\alpha_{i,1},\ldots,\alpha_{i,k}\}$ indexed such that $\alpha_{i,j}$ is the probability that lineage $(p_i,\ell_i,r_i)$ maps to $(p_{i,j},\ell_{i,j},r_{i,j})$. If we consider all the lineages in $S$, the states that $S$ can map to are all the states where each lineage $(p_i,\ell_i,r_i)$ is mapped to exactly one lineage in $\lambda(p_i,\ell_i,r_i)$.
+
+For any such selection $j_1,\ldots,j_n$ of lineages $(p_{i,j_i},\ell_{i,j_i},r_{i,j_i})$ we map to state $\{ (p_{i,j_i},\ell_{i,j_i},r_{i,j_i})\in\lambda(p_i,\ell_i,r_i) \}$ with probability $\prod_{j_1,\ldots,j_n} \alpha_{i,j_i}$ because of the independence of how each lineage is mapped.
+
+
+\paragraph{An admixture model}
+
+A simple example of such a system is the admixture model shown in Figure~\ref{fig:demographic-model-admixture-model}. Here, lineages can be in one of four populations: An ancestral population, $p$, that at some point in time, $\tau_s$ split into two source populations, $p_A$ and $p_B$, that at a later time $\tau_a$ admix to create the population $p_C$. As we trace lineages back in time from the precent, they start out in population $p_C$ and at the admixture time $\tau_a$ each lineage $(p_C,\ell,r)$ is mapped to population $p_A$ --- $(p_C,\ell,r)\mapsto(p_A,\ell,r)$ --- with probability $\alpha$ and to population $p_B$ -- $(p_C,\ell,r)\mapsto(p_B,\ell,r)$ --- with probability $\beta=1-\alpha$. At time $\tau_s$ lineages from both $p_A$ and $p_B$ are simply mapped into the ancestral population as was done in the isolation model.
+
+At time $\tau_a$, lineages in $p_C$ jump to $p_A$ (with probability $\alpha$) or to $p_B$ (with probability $\beta$) independently, so for example the state 
+\[\left\{
+	\left(p_C,\left\{1\right\},\emptyset\right),
+	\left(p_C,\emptyset,\left\{1\right\}\right),
+	\left(p_C,\left\{2\right\},\left\{2\right\}\right)
+ \right\}
+\]
+would jump to
+\begin{enumerate}
+	\item $\left\{(p_A,\{1\},\emptyset), (p_A,\emptyset,\{1\}), (p_A,\{2\},\{2\})\right\}$ with probability $\alpha^3$
+	\item $\left\{(p_A,\{1\},\emptyset), (p_A,\emptyset,\{1\}), (p_B,\{2\},\{2\})\right\}$ with probability $\alpha^2\cdot\beta$
+	\item $\left\{(p_A,\{1\},\emptyset), (p_B,\emptyset,\{1\}), (p_A,\{2\},\{2\})\right\}$ with probability $\alpha^2\cdot\beta$
+	\item $\left\{(p_B,\{1\},\emptyset), (p_A,\emptyset,\{1\}), (p_A,\{2\},\{2\})\right\}$ with probability $\alpha^2\cdot\beta$
+	\item $\left\{(p_A,\{1\},\emptyset), (p_B,\emptyset,\{1\}), (p_B,\{2\},\{2\})\right\}$ with probability $\alpha\cdot\beta^2$
+	\item $\left\{(p_B,\{1\},\emptyset), (p_A,\emptyset,\{1\}), (p_B,\{2\},\{2\})\right\}$ with probability $\alpha\cdot\beta^2$
+	\item $\left\{(p_B,\{1\},\emptyset), (p_B,\emptyset,\{1\}), (p_A,\{2\},\{2\})\right\}$ with probability $\alpha\cdot\beta^2$
+	\item $\left\{(p_B,\{1\},\emptyset), (p_B,\emptyset,\{1\}), (p_B,\{2\},\{2\})\right\}$ with probability $\beta^3$
+\end{enumerate}
+
+\begin{figure}[tb]
+  \missingfigure{Illustration of admixture model}
+  \caption{A simple admixture model. This model assumes that we at the present time have a population $p_C$ that at an early point in time was admixed from two older populations, $p_A$ and $p_B$. Lineages traced back in time will at the admixture time either jump to $p_A$ or $p_B$ and each lineage will do that independently of other lineages.}
+  \label{fig:demographic-model-admixture-model}
+\end{figure}
+
+
+
+\section{Implementation}
+
+In the Python CoalHMM framework we don't have support for the fully general mappings --- except that of course any mapping matrix can be constructed using the appropriate Python code. We do, however, have an implementation of situation where lineages are mapped from one lineage to exactly one other, with probability one --- the first case described in this chapter --- while we have a more explicit implementation of the admixture case.
+
+\subsection{Mapping lineages one-to-one}
+
+When mapping each lineage in the source state space to exactly one lineage in the destination state space we simply need to construct the destination state --- by mapping each lineage independently --- get the index of both source and destination state, and set the entry in the mapping matrix to one.
+
+A straightforward implementation looks like this:\footnote{The implementation in the Python framework differs slightly by having a state map function that maps the entire state instead of each lineage in the state. All the models that use the projection matrix function, however, implements this by mapping over all the lineages.}
+\begin{lstlisting}
+def projection_matrix(from_state_space, to_state_space, lineage_map):
+
+    projection = matrix(zeros((len(from_state_space.states),
+                               len(to_state_space.states))))
+    for from_state, from_index in from_state_space.states.items():
+        to_state = frozenset([lineage_map(lineage) for lineage in state])
+        to_index = to_state_space.states[to_state]
+        projection[from_index, to_index] = 1.0
+
+    return projection
+\end{lstlisting}
+
+The lineages maps are equally simple. For the simple isolation model, for example, where lineages $(p,\ell,r)$ should map to $(0,\ell,r)$ for all populations $p$ if $0$ is the ancestral population, would look like this:
+\begin{lstlisting}
+def isolation_lineage_map(lineage):
+    p, l, r = lineage
+    return (0, l, r)
+\end{lstlisting}
+
+\subsection{Mapping lineages in an admixture event}
+
+We have not implemented support for more general mapping approaches but have an explicit implementation of admixture models. The simple scenario with a single population that is admixed from two others --- so lineages at some point needs to be mapped to one of two populations, with probability $\alpha$ and $\beta=1-\alpha$ respectively --- is implemented below.
+
+For the implementation we need to helper functions: one to generate all powersets of a set:
+
+\begin{lstlisting}
+def powerset(iterable):
+    """powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"""
+    s = list(iterable)
+    return set(chain.from_iterable(combinations(s, r) for r in range(len(s)+1)))
+\end{lstlisting}
+
+And one to get the complement of a set:
+\begin{lstlisting}
+def complement(universe, subset):
+    """Extract universe \ subset."""
+    return set(universe).difference(subset)
+\end{lstlisting}
+
+With these helper functions, implementing the mapping function directly follows the description earlier in this chapter: Given the set of lineages in a state we generate all partitions of the set (all sets in the power set of lineages and their respective complements) and construct the successor states where we put the lineages in the two admixed populations according to the partition. The probabilities of a given transition between states is determined just from the size of the sets in the partion.
+
+\begin{lstlisting}
+def admixture_state_space_map(from_space, to_space, alpha):
+    destination_map = to_space.state_numbers
+    map_matrix = matrix(zeros((len(from_space.states), len(to_space.states))))
+    beta = 1.0 - alpha
+
+    for state, from_index in from_space.state_numbers.items():
+        lineages = state
+
+        for x in powerset(lineages):
+            cx = complement(lineages, x)
+
+            ## send x lineages to pop 1 and cx to pop 2
+            x  = frozenset((1, lin) for (p, lin) in x)
+            cx = frozenset((2, lin) for (p, lin) in cx)
+
+            destination_state = frozenset(x).union(cx)
+            change_probability = alpha**len(x) * beta**len(cx)
+            to_index = destination_map[destination_state]
+
+            map_matrix[from_index, to_index] = change_probability
+
+    return map_matrix
+\end{lstlisting}
+
+

@@ -1,0 +1,360 @@
+\chapter{Modelling the ancestry of two neighbouring nucleotides}
+\label{chap:modelling-2-ARGs}
+
+To build the hidden Markov model transition probabilities we need to construct the joint probability matrix, $J_\Theta(\ell,r)$, of two neighbouring genealogies $\ell$ and $r$. The approach we take is to construct these probabilities using continuous time Markov chains (CTMCs). By specifying how samples of sequences of length two trace their ancestry back in time in a CTMC we can get a probability distribution of all possible genealogies. This chapter covers how we can construct these CTMCs. Chapters~\ref{chap:CTMC-algebra},~\ref{chap:composing-CTMCs}~and~\ref{chap:constructing-coalhmms} will cover how we translate the CTMCs into CoalHMMs.
+
+\section{A transition system for tracing ancestry}
+
+The approach we take explicitly enumerates all possible ancestral states the sampled lineages can reach back in time and all possible transitions between them. Constructing this state space by hand is both tedious and error prone. The number of states and transitions grows super-exponential in the number of samples handled or the number of populations modelled, so automatic generation of the state space is essential.
+
+To automatically generate the state space for a demographic model we need to specify a small set of rules for how the state space should be constructed and then implement an algorithm for constructing the full set of states and transitions these rules are describing. There are many formal ways of describing such rules for generating a state space. Here we will, inspired by \citet{springerlink:10.1007/978-3-642-31131-4_3}, consider a system based on \emph{coloured Petri nets}.
+
+\subsection{Coloured Petri nets}
+
+Petri nets is a formalism for describing the evolution of a concurrent system in terms of a so-called token game. A Petri net consist of a set of ``places'' where tokens can be placed, and a state of the system is defined by the number of tokens on each place. The system then evolves by the occurrence of ``transitions'', where each transition removes a fixed number of tokens from some of the places and places other tokens on other places.
+
+Coloured Petri nets extends Petri nets by assigning information (colours) to the tokens. Tokens are still placed on places and transitions still remove existing tokens and put down new tokens; now, however, there is data associated with each token. Below I will give a simplified definition of coloured Petri nets, sufficient for the needs of the system we need to build for the coalescence process. For a more comprehensive treatment of coloured Petri nets I refer to \citeauthor{Jensen:2009ti} ``\citetitle{Jensen:2009ti}''~\cite{Jensen:2009ti}. Readers already familiar with coloured Petri nets might want to skip to the next section as I am taking some liberties in how I formalise nets; this is done to avoid complications that are irrelevant for our needs here.\footnote{The definition I give of coloured Petri nets is much simplified compared to the defintion in \citet{Jensen:2009ti}. I do not bother with formally defining the types associated with places, just assign a set to each place, nor distinguish between transitions and transition bindings but lump them together so what I call transitions here really corresponds to bindings in \citet{Jensen:2009ti}. Since we will not need to have more than one token of any color on the same place I do not use multi-sets but simply sets.}
+
+Formally we define a coloured Petri net as a tuple $(P,T,C,\pre,\post)$ where $P$ a set of \emph{places} and $T$ a set of \emph{transitions}. $C$ is a $P$ indexed set of set and we say that $C(p)$ is the (colour) type of place $p\in P$. A \emph{marking} or state of a coloured Petri net is defined by which \emph{tokens} are found on each place. Formally it is a mapping $m$ that maps each place $p$ to a set $m(p)\subseteq C(p)$. Elements in $m(p)$ are the tokens placed on place $p$ in the given marking/state.
+
+Finally, $\pre$ and $\post$ are mapping that determines how the system can evolve. For each transition, $\pre$ specifies which tokens the transition will consume -- and therefore which tokens must be present on in the current marking for the transition to be possible -- and $\post$ specifies which tokens the transition will produce. For all transitions $t$ and places $p$, $\pre(t,p) \subseteq C(p)$. A transition $t$ is possible, or \emph{enabled}, in a marking $m$ if for all places $p$ $\pre(t,p)\subseteq m(p)$, i.e.\ if all the tokens that the transition will consume at any place are on the place in the marking. For all transitions $t$ and places $p$, $\post(t,p) \subseteq C(p)$ determines which tokens are produced by the occurrence of transition $t$. If $m$ is the current marking and transition $t$ is enabled, then the occurrence of transition $t$ will update the marking to $m'$ satisfying $\forall p: m'(p) = m(p) \setminus \pre(t,p) \cup \post(t,p)$, i.e.\ we remove the tokens in $\pre(t,p)$ and then add the tokens in $\post(t,p)$. If transition $t$ is enabled in marking $m$ and its occurrence would lead to marking $m'$ we write this as $m[t\rangle m'$. We will write $m[t_1,t_2,\ldots,t_k\rangle m'$ if there exists intermediate states $m_i,i=1,\ldots,k$ such that $m_{i-1}[t_i\rangle m_i$ with $m_0=m$ and $m_k=m'$ and $m[\cdots\rangle m'$ if there exists a sequence of transitions $t_1,\ldots,t_k$ such that $m[t_1,\ldots,t_k\rangle m'$. We will also allow this sequence of transitions to be empty so $m[\cdots\rangle m$.
+
+\subsection{A coloured Petri net of the coalescence process}
+
+To construct our coalescence system as a coloured Petri net we let $\samples=\{s_1,s_2,\ldots,s_n\}$ denote a set of samples for the system and let $\populations=\{p_1,p_2,\ldots,p_m\}$ denote a set of populations. We do not necessarily require that there is a sample from each population or that all samples will be able to migrate to all populations, but because of the state space explosion problem we should not model more populations than strictly necessary.
+
+The Petri net we construct will only need a single place. We want tokens represent ancestral lineages so we want them to hold information about which population a given lineage is in and which present day samples they are ancestral to on both the left and the right nucleotide. The colour set of the place will therefore be $\populations\times\powerset(\samples)\times\powerset(\samples)$, where $\powerset(\samples)$ denote the power set of samples, i.e.\ the set of all subsets of $\samples$. The first component specifies the population, of which there can be only one, and the next two the set of samples the lineage is ancestral to on the left and on the right, respectively. Since we only have a single place we will not include it in the notation for the $\pre$ and $\post$ sets and write $\pre(t)$ and $\post(t)$ instead of $\pre(t,p)$ and $\post(t,p)$.
+
+We will have three kinds of transitions: \emph{coalescence}, \emph{migration}, and \emph{recombination} transitions. Figure~\ref{fig:ctmc-cpn} is a graphical representation of these transitions. Here the rectangular nodes represent the three types of transitions and the arcs between them and the place, the oval node, represent the $\pre$ and $\post$ mappings. Arcs from the place to a transition node represent the $\pre$ mapping and arcs from a transition to a place the $\post$ mapping. The inscriptions on the arcs describe the lineages/tokens that a transition will consume and produce. There are concrete transitions for each assignment of values to the variables on these arc inscriptions.
+
+Coalescence transitions are indexed by the values for two tokens, $(p_i,\ell_i,r_i),(p_j,\ell_j,r_j)\in\populations\times\powerset(\samples)\times\powerset(\samples)$, but will require that the tokens are in the same population, $p_i = p_j$. For each assignment of values to these variables we have a coalesce transition $\coaltrans(p_i,\ell_i,r_i,\ell_j,r_j)$. The $\pre$ set, the set of tokens to be consumed, is
+\[
+    \pre(\coaltrans(p_i,\ell_i,r_i,\ell_j,r_j)) =
+    \{\,(p_i,\ell_i,r_i),\,(p_i,\ell_j,r_j)\,\}
+    ,
+\]
+and a coalescence transition will merge the left and right ancestral lineages so the new token it produces is
+\[
+    \post(\coaltrans(p_i,\ell_i,r_i,\ell_j,r_j)) =
+    \{\,(p_i,\,\ell_i\cup\ell_j,\,r_i\cup r_j)\,\}
+    .
+\]
+
+There is no difference between the first and the second token selected here, so we consider $\coaltrans(p_i,\ell_i,r_i,\ell_j,r_j)$ and $\coaltrans(p_j,\ell_j,r_j,\ell_i,r_i)$ the same transition.
+
+\begin{figure}[tb]
+  \missingfigure{The CPN for the coalescence system}
+  \caption{A coloured Petri net for the coalescence system.
+  The oval node represents the single place of the Petri net and the rectangular nodes the different transitions. Each type of transition is only shown as a single node but the annotations on the arcs between transitions and the place, representing the $\pre$ and $\post$ mappings, can take different values representing different instances of the transitions.}
+  \label{fig:ctmc-cpn}
+\end{figure}
+
+Migration transitions are indexed by two populations, $p_i \neq p_j$ and a token from one of them $(p_i,\ell_i,r_i)$. It will consume the token in population $p_i$ and produce a new token in population $p_j$ with the same ancestral lineages:
+\[
+    \pre(\migtrans(p_i,p_j,\ell_i,r_i) =
+    \{\,(p_i,\ell_i,r_i)\,\}
+    ,
+\]and\[
+    \post(\migtrans(p_i,p_j,\ell_i,r_i) =
+    \{\,(p_j,\ell_i,r_i)\,\}
+    .
+\]
+
+If we only want to permit migration between certain pairs of populations, or if we want migration in only one direction, we can restrict further the possible migration transitions accordingly.
+
+Recombination transitions are indexed by a single token that they consume and instead produce two tokens, one containing the ancestral lineages on the left of the consumed transition and one containing the ancestral lineages on the right:
+\[
+    \pre(\recombtrans(p_i,\ell_i,r_i) =
+    \{\,(p_i,\ell_i,r_i)\,\},
+\]
+and
+\[
+    \post(\recombtrans(p_i,\ell_i,r_i) =
+    \{\,(p_i,\ell_i,\emptyset),\,(p_i,\emptyset,r_i)\,\}
+    .
+\]
+
+When considering markings for this net we will just refer to the set associated with the single place; instead of describing a mapping from places to their colour set, we simply refer to the tokens on that place.
+
+\subsection{Example}
+
+As an example, consider a case with two populations $\populations=\{\,p_1,\,p_2\,\}$ and two samples $\samples=\{\,s_1,\,s_2\,\}$. We imagine we obtained these samples such that sample $s_1$ came from population $p_1$ and sample $s_2$ from population $p_2$, so with an initial marking 
+\[
+    m_\iota = \{\,(p_1,\{s_1\},\{s_1\}),\,(p_2,\{s_2\},\{s_2\})\,\}
+    .
+\]
+
+Four transitions are possible in this initial state. Either of the two lineages can recombine:
+\begin{eqnarray}
+    \label{eq:recomb_transition_1}
+    m_\iota
+    \quad \big[\recombtrans(p_1,\{s_1\},\{s_1\})\big\rangle \quad
+    \{\,(p_1,\{s_1\},\emptyset),\,
+        (p_1,\emptyset,\{s_1\}),\,
+        (p_2,\{s_2\},\{s_2\})\,\}\\
+    \label{eq:recomb_transition_2}
+    m_\iota
+    \quad \big[\recombtrans(p_2,\{s_2\},\{s_2\})\big\rangle \quad
+    \{\,(p_1,\{s_1\},\{s_1\}),\,
+        (p_2,\{s_2\},\emptyset),\,
+        (p_2,\emptyset,\{s_2\})\,\}
+\end{eqnarray}
+and either lineage can migrate to the other population
+\begin{eqnarray}
+    \label{eq:migration_transition_12}
+    m_\iota
+    \quad \big[\migtrans(p_1,p_2,\{s_1\},\{s_1\})\big\rangle \quad
+    \{\,(p_2,\{s_1\},\{s_1\}),\,(p_2,\{s_2\},\{s_2\})\,\}\\
+    \label{eq:migration_transition_21}
+    m_\iota
+    \quad \big[\migtrans(p_2,p_1,\{s_2\},\{s_2\})\big\rangle \quad
+    \{\,(p_1,\{s_1\},\{s_1\}),\,(p_1,\{s_2\},\{s_2\})\,\}
+\end{eqnarray}
+
+There are no coalescence transitions possible in the initial state since the two lineages are in separate populations. If, however, the transition in \eqref{eq:recomb_transition_1} occurred there would be two lineages, $(p_1,\{s_1\},\emptyset)$ and $(p_1,\emptyset,\{s_1\})$ in population $p_1$ that could coalesce back into the initial marking
+\[
+    \{\,(p_1,\{s_1\},\emptyset),\,
+        (p_1,\emptyset,\{s_1\}),\,
+        (p_2,\{s_2\},\{s_2\})\,\}
+    \quad
+    \big[\coaltrans(p_1,\{s_1\},\emptyset,\emptyset,\{s_1\})\big\rangle 
+    \quad
+    m_\iota
+    .
+\]
+
+Similarly, if the transition in \eqref{eq:recomb_transition_2} occurred, a coalescence transition for the two lineages in population $p_2$ would be enabled for taking the system back to its initial state.
+
+Transitions \eqref{eq:migration_transition_12} and \eqref{eq:migration_transition_21} both move a lineage from one population to another; after either of these transitions a coalescence transition is also enabled. If the transition in \eqref{eq:migration_transition_12} occurred, both lineages are in population $p_2$ and the coalescence transition $\coaltrans(p_2,\{s_1\},\{s_1\},\{s_2\},\{s_2\})$ is enabled. If this transition then occurs it will update the marking to
+\(
+    \{\,(p_2,\,\{s_1,s_2\},\,\{s_1,s_2\})\,\}
+    ,
+\)
+which contains a single lineage that holds the ancestral material for both samples.
+
+A possible run of this process, from the initial state until all lineages have found their most recent common ancestor, could look like this:
+\begin{align}
+    \nonumber
+    m_\iota &= \{\,(p_1,\{s_1\},\{s_1\}),\,(p_2,\{s_2\},\{s_2\})\,\}
+    \\ %% recombination
+    &\big[\recombtrans(p_1,\{s_1\},\{s_1\})\big\rangle
+    \label{eq:ex_recomb_1}
+    \\
+    \nonumber
+    &
+    \{\,(p_1,\{s_1\},\emptyset),\,
+        (p_1,\emptyset,\{s_1\}),\,
+        (p_2,\{s_2\},\{s_2\})\,
+    \}
+    \\ %% migration
+    &\big[\migtrans(p_1,p_2,\{s_1\},\emptyset)\big\rangle
+    \label{eq:ex_mig_1}
+    \\
+    \nonumber
+    &
+    \{\,(p_2,\{s_1\},\emptyset),\,
+        (p_1,\emptyset,\{s_1\}),\,
+        (p_2,\{s_2\},\{s_2\})\,
+    \}
+    \\ %% coalescence
+    &\big[\coaltrans(p_2,\{s_1\},\emptyset,\{s_2\},\{s_2\})\big\rangle
+    \label{eq:ex_coal_1}
+    \\
+    \nonumber
+    &
+    \{\,(p_1,\emptyset,\{s_1\}),\,
+        (p_2,\{s_1,s_2\},\{s_2\})\,
+    \}
+    \\ %% migration
+    &\big[\migtrans(p_2,p_1,\{s_1,s_2\},\{s_2\})\big\rangle
+    \label{eq:ex_mig_2}
+    \\
+    \nonumber
+    &
+    \{\,(p_1,\emptyset,\{s_1\}),\,
+        (p_1,\{s_1,s_2\},\{s_2\})\,
+    \}
+    \\ %% coalescence
+    &\big[\coaltrans(p_1,\emptyset,\{s_1\},\{s_1,s_2\},\{s_2\})\big\rangle
+    \label{eq:ex_coal_2}
+    \\
+    \nonumber
+    &
+    \{\,
+        (p_1,\{s_1,s_2\},\{s_1,s_2\})\,
+    \}
+\end{align}
+
+First, the lineage in population $p_1$ recombines into two lineages, \eqref{eq:ex_recomb_1}, after which the lineage carrying the left nucleotide for sample $s_1$ migrations into population $p_2$, \eqref{eq:ex_mig_1}. The two lineages now in population $p_2$ coalesces, \eqref{eq:ex_coal_1}, before migrating to population $p_1$, \eqref{eq:ex_mig_2}, and finally coalescing with the right nucleotide of sample $s_1$, \eqref{eq:ex_coal_2}.
+
+\begin{figure}[tb]
+  \missingfigure{Example ancestral recombination graph}
+  \caption{Example ancestral recombination graph. The graph shows the ancestral lineages and events of transitions, described in the main text, going back in time from the present until the most recent common ancestor for both left and right nucleotides of the two lineages.}
+  \label{fig:cpn-arg}
+\end{figure}
+
+
+\section{From the reachability graph to a CTMC}
+
+Given an \emph{initial marking} $m_\iota$ the state space of a coloured Petri net consists of all states reachable from this state (markings $m$ where $m_\iota[\cdots\rangle m$) and all possible transitions between reachable states (i.e.\ between markings $m$ and $m'$ we have all transitions $t$ with $m[t\rangle m'$). It is from this state space we construct the continuous time Markov chain that will give us the probability density over all pairs of genealogies.
+
+To specify the CTMC for the ancestry of our samples we need only specify the rate matrix $Q$ and the initial state probabilities $\pi(0)$. The latter is the simplest; if $\iota$ denotes the index of the initial marking then $\pi(0)_i = 1$ if $i=\iota$ and $\pi(0)_i = 0$ if $i\neq\iota$. The former, specifying the rate matrix $Q$, requires a traversal of all the transitions in the state space. Once we know how many states there are, say $N$, then we can allocate a matrix of size $N\times N$ and initially set all entries to zero. We then need to enumerate all states $m$ and assign them an index $i_m$. For all transitions $m[t\rangle m'$ we then need to assign to $Q_{i_m,i_{m'}}$ the rate for transition $t$. These rates, e.g.\ the coalescence rate in population $p$ or the migration rate between populations $p$ and $q$, are parameters of the model and must be looked up in a table. Once all the off-diagonal entries are filled in, the diagonal is assigned minus the row sums.
+
+\section{Implementing the state space generator}
+
+
+It is relatively straightforward to implement the state space generator for the coloured Petri net described above. All transitions are relatively simple, consuming either one or two tokens, and all tokens\todo{check if I have introduced tokens in the text above} are of a very simple type. In the IMCoalHMM framework the state space generator is implemented in a class with two key methods. The first is responsible for computing the successors for any given state and the second for generating the complete reachability graph and then the CTMC rate matrix for the system.
+
+The computation of successor states is done as shown below:
+
+\begin{lstlisting}
+    def successors(self, state):
+        tokens = list(state)
+
+        # Transitions consuming one token.
+        for ttype, tfunc in self.transitions[0]:
+            for token in tokens:
+                pre = frozenset([token])
+                for pop_a, pop_b, post in tfunc(token):
+                    pop_a, pop_b, post = result
+                    new_state = state.difference(pre).union(post)
+                    yield ttype, pop_a, pop_b, new_state
+
+        # Transitions consuming two tokens.
+        for ttype, tfunc in self.transitions[1]:
+            for i in xrange(len(tokens)):
+                for j in xrange(i):
+                    pre = frozenset([tokens[i], tokens[j]])
+                    for pop_a, pop_b, post in tfunc(tokens[i], tokens[j]):
+                        new_state = state.difference(pre).union(post)
+                        yield ttype, pop_a, pop_b, new_state
+\end{lstlisting}
+
+The method takes the lineages in the state --- here called ``tokens'' in the terminology of Petri nets --- and considers each single token in turn for each possible transition that consumes a single token (these are kept in the list \texttt{self.transitions[0]}) --- or all possible pairs of tokens for each possible transition that consumes two tokens (these are kept in the list \texttt{self.transitions[1]}). In the description of the Petri net above there are three types of transitions --- recombination and migration that consumes one token and coalescence that consumes two --- but the code is more general and can easily be extended to have more transitions.
+
+The protocol for transitions is that they consist of a type (\texttt{ttype}) --- used to identify them when we need to annotate edges in the reachability graph and assign rates to entries in the rate matrix --- and a function (\texttt{tfunc}) responsible for computing the possible products of the transition. The function actually returns a list of possible products. This is used both to handle cases where more than one output is possible --- for migration transitions the same lineage can migrate to more than one population so more than one possible product is possible --- or to abort a transition (return an empty list) to avoid transitions we do not want to allow --- such as recombinations where either the left or right nucleotide is the empty set.
+
+ The transition function returns two populations as well; the purpose is to identify the transition if rates depend on the populations of the tokens involved. For the transitions we have considered, only migration transitions actually involve two populations, but rather than handling two cases --- one or two populations associated with a transition --- the protocol is just to let all transitions return two populations.
+
+It is possible for the transition function to return \texttt{None} as a way of aborting the transition. This is used by recombination transitions to avoid recombinations on lineages where either the left or right nucleotides are the empty set.
+
+For each transition, a successor state is computed by removing the token(s) in the pre-set of the transition and adding the post-set of tokens.
+
+The transitions are listed below. The first two consume a single token and are stored in \texttt{self.transitions[0]} and the third consumes two tokens and is stored in \texttt{self.transitions[1]}.
+
+The recombination transition first checks that both left and right nucleotide contains ancestral material. If they do not it returns the empty list, and no successor states will be computed for that transition. If they do, it returns two tokens, one with the left ancestral material and one with the right ancestral material. Only a single population is involved, so it just returns that population twice.
+
+\begin{lstlisting}
+    def recombination(token):
+        pop, left, right = token
+        if not (left and right): return [] # Abort transition
+        return [(pop, pop, frozenset([(pop, left, frozenset()),
+                                      (pop, frozenset(), right)]))]
+\end{lstlisting}
+
+The migration transition consumes a single token and produce a list of tokens for all other populations than the one the token was originally in. (The listing here is slightly simplified compared to the implementation in the framework --- there the state space generator has a table of populations that it allows migrations between so we do not have to allow all possible migrations --- but the implementation below is closer to the description above).
+
+\begin{lstlisting}
+    def migrate(self, token):
+        pop, left, right = token
+        res = [(pop, pop2, frozenset([(pop2, left, right)]))
+               for pop2 in self.populations if pop2 != pop]
+        return res	
+\end{lstlisting}
+
+Finally, the coalescence transition takes two tokens. If they are from different populations it aborts and if not it constructs a new token by joining the two left and the two right sets.
+
+\begin{lstlisting}
+    def coalesce(token1, token2):
+        pop1, left1, right1 = token1
+        pop2, left2, right2 = token2
+        if pop1 != pop2: return [] # Abort transition
+        left, right = left1.union(left2), right1.union(right2)
+        return [pop1, pop2, frozenset([(pop1, left, right)])]
+\end{lstlisting}
+
+\newpage % FIXME: FOR LAYOUT -- CHECK HOW IT LOOKS IF YOU CHANGE THE TEXT
+The computation of the state space is then handled by the method listed below:
+\begin{lstlisting}
+    def compute_state_space(self):
+
+        if type(self.init) == list:
+            seen = set(self.init)
+            unprocessed = list(self.init)
+            self.state_numbers = dict((x,i) for i, x in enumerate(self.init))
+        else:
+            seen = {self.init}
+            unprocessed = [self.init]
+            self.state_numbers = {self.init: 0}
+
+        edges = []
+
+        # Construct the reachability graph
+        while unprocessed:
+            state = unprocessed.pop()
+            state_no = self.state_numbers[state]
+            for trans, pop1, pop2, dest in self.successors(state):
+                if dest not in self.state_numbers:
+                    self.state_numbers[dest] = len(self.state_numbers)
+                if dest not in seen:
+                    unprocessed.append(dest)
+                    seen.add(dest)
+                edges.append((state_no,
+                              (trans, pop1, pop2),
+                              self.state_numbers[dest]))
+
+        # Collect transitions so they map between state indices
+        remapping = {}
+        mapped_state_numbers = {}
+        for state_no in set(self.state_numbers.values()):
+            remapping[state_no] = len(remapping)
+        for state, state_no in self.state_numbers.iteritems():
+            mapped_state_numbers[state] = remapping[state_no]
+
+        self.states = mapped_state_numbers
+        self.transitions = [(remapping[src], (trans, pop1, pop2), remapping[dest])
+                            for src, (trans, pop1, pop2), dest in edges]
+
+\end{lstlisting}
+
+It first handles a special case for initial states. In the description above we have considered a single initial state for a system, and in general that will also be the case. All the coalescence systems we consider have a single initial state at time zero. However, sometimes we have to handle systems where it is possible to start in different states --- this happens when we have different systems further back in the past where the evolution back to that time can leave the system in different states. The need for this should become clearer in later chapters; for now it is perhaps best just to consider it a technical detail.
+
+Once the initial state(s) is handled, the reachability graph construction is straightforward: each state is considered in turn and all its successor are computed. We collect the transitions from the state to all its successors and those successors we have not seen before we add to a list of unprocessed states to be handled later (and record that we have now seen them).
+
+When building the reachability graph we need to represent states as sets of tokens, but once we are done we want to represent them simply as indices in the CTMC rate matrix we will need to build, so after building the graph we map all states to their numbers and collect the transitions in a form that goes from index to index rather than from state to state.
+
+From the reachability graph we can now very easily build the CTMC rate matrix. Given a table of rates, \texttt{rates_table}, where we can look up the numerical value for the rate of a transition --- where a transition is represented by the transition type and the two populations involved --- the computation can be done as this:
+
+\begin{lstlisting}
+  rate_matrix = matrix(zeros((len(state_space.states),
+                              len(state_space.states))))
+
+  for src, trans, dst in state_space.transitions:
+      rate_matrix[src, dst] = rates_table[trans]
+
+  for i in xrange(len(state_space.states)):
+      rate_matrix[i, i] = - rate_matrix[i, :].sum()
+\end{lstlisting}
+
+We do not do this in the state space module, however. For each choice of model parameters the rates can change so we will need to recompute the rate matrix several times in model fitting. The reachability graph, however, is fixed for the system so we compute this only once and store it in the symbolic form above and then build the CTMC rate matrix when we need it in the likelihood computations.
+
+The rates table depends on the actual demographic model. For a two population model it could be constructed by a function as that below:
+\begin{lstlisting}
+def make_rates_table_migration(coal_rate_1, coal_rate_2, recomb_rate,
+                               migration_rate_12, migration_rate_21):
+    table = dict()
+    table[('C', 1, 1)] = coal_rate_1
+    table[('C', 2, 2)] = coal_rate_2
+    table[('R', 1, 1)] = recomb_rate
+    table[('R', 2, 2)] = recomb_rate
+    table[('M', 1, 2)] = migration_rate_12
+    table[('M', 2, 1)] = migration_rate_21
+    return table
+\end{lstlisting}
+where 'C', 'R', and 'M' are used as the function types and 1 and 2 to identify the populations.
+
+
+\section{The state space explosion problem}
+
+\todo[inline]{Statistics on how the state space explodes}
+

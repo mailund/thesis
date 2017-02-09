@@ -1,0 +1,38 @@
+\chapter{Constructing CoalHMMs}
+\label{chap:constructing-coalhmms}
+
+In this chapter, we finally address the translation of the coalescence CTMC systems into hidden Markov models. As briefly mentioned in Chapter~\ref{chap:smc-coalhmm}, the key challenge here is computing transition probabilities, $T_\Theta(r\,|\,\ell)$ of going from one genealogy, $\ell$, to the next, $r$. Since this transition probability can always be written as
+\[
+	T_\Theta(r\,|\,\ell) =
+	\frac{J_\Theta(\ell,r)}{p_\Theta(\ell)}
+\]
+where $J_\Theta(\ell,r)$ is the joint probability of seeing genealogy $\ell$ on the left and genealogy $r$ on the right of a pair of nucleotides and $p_\Theta(\ell)$ is the marginal probability of seeing genealogy $\ell$ --- and where $\Theta$ refers to the parameters of the model) --- we will focus on how to compute $J_\Theta(\ell,r)$. The other two parameters of a hidden Markov model, the initial state probabilities and the emission probabilities, can be computed from this matrix or from standard algorithms: The initial state probabilities, $p_\Theta(\ell)$ are given by $p_\Theta(\ell) = \sum_r J_\Theta(\ell,r)$ and the emission probabilities, $E_\Theta(x\,|\,\ell)$, of seeing alignment column $x$ given the underlying genealogy is $\ell$ can be computed by standard phylogenetic algorithms~\cite{Felsenstein_1981}.
+
+
+\section{CoalHMM examples}
+\todo[inline]{Move this somewhere else, to a place where the translation from the CTMC to the HMM is explained.}
+
+For the pairwise CoalHMM we keep track of the coalescence time in the left and in the right nucleotides of two samples. Let $J(i,j)$ be the joint probability that the left nucleotides find their most recent common ancestor in interval $i$ and the right nucleotides find their most recent common ancestor in interval $j$. For any interval $i$ let $B_i$ denote the states where neither left nor right nucleotides have coalesced,\footnote{$B$ denotes ``beginning'' states and matches the notation used in \citet{Mailund:2011dv,Mailund:2012ew}.} $L_i$ the states where only the left nucleotides have coalesced but not the right, $R_i$ the states where only the right nucleotides have coalesced but not the left, and $E_i$ the states where both left and right nucleotides have coalesced.
+
+The probability that both left and right nucleotides coalesce in the same interval is the probability that they enter that interval in a state in $B_i$ and leaves it in a state $E_i$, so
+\[
+    J(i,i) = \iota\,\upto{i}\,{B_i}\,\interval{i}\,{\Sigma E_i}
+\]
+where $\iota$ is the initial state for the CTMC (usually the CTMC starts in a single know state for these CoalHMMs). The final interval is not an interval we can leave, but there we know we will eventually coalesce if we haven't before entering it, so for the final interval $n$ we have
+\[
+    J(n,n) = \iota\,\upto{n}\,{\Sigma B_n}
+    .
+\]
+
+For $i<j$ we have
+\[
+    J(i,j) = \iota\,\upto{i}\,{B_i}\,\interval{i}\,{L_{i+1}}\,\between{i}{j}\,{L_j}\,\interval{j}\,{\Sigma E_j}
+\]
+and for $j<i$ the similar
+\[
+    J(i,j) = \iota\,\upto{j}\,{B_j}\,\interval{j}\,{R_{j+1}}\,\between{i}{j}\,{R_j}\,\interval{i}\,{\Sigma E_i}
+\]
+although we usually compute this using the symmetry $J(i,j)=J(j,i)$ of the CoalHMM CTMC. Again there is a special case for the last interval where we have
+\[
+    J(i,n) = \iota\,\upto{i}\,{B_i}\,\interval{i}\,{L_{i+1}}\,\between{i}{n}\,{\Sigma L_n}    .
+\]

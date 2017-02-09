@@ -1,0 +1,102 @@
+\chapter{A small algebra of continuous time Markov chains}
+\label{chap:CTMC-algebra}
+
+Before continuing with developing the CoalHMM framework we will spend this chapter on introducing notation for dealing with continuous time Markov chains where different time intervals can have different state spaces and where we need to compute joint probabilities of which sets of states the chain will be in at given points in time.
+
+\section{Piecewise homogeneous CTMCs}
+
+We will consider a continous time Markov chain $\{ X(t) \,|\, t \geq 0\}$ with a fixed number of ``break points'' $\tau_0, \tau_1, \ldots, \tau_n$ such that $\tau_i < \tau_{i+1}$. Between any two consecutive break points $\tau_i,\tau_{i+1}$, $X$ is a time homogeneous CTMC with rate matrix $Q^{i}$ over some state space $S_i$. The state space of two different intervals, however, can differ so $X$ takes values in one state space for interval $i=[\tau_i,\tau_{i+1})$ and a different state space for interval $i+1=[\tau_{i+1},\tau_{i+2})$. By convention we will use closed time intervals on the left of an interval and open on the right, i.e.\ $X(\tau)\in S_i$ for $\tau\in[\tau_i,\tau_{i+1})$ but $X(\tau_{i+1})\in S_{i+1}$.
+
+We further assume there is a mapping $\eta^i$ of states from the state space of interval $i$ to the state space of interval $i+1$, potentially a probabilistic mapping, such that 
+\[
+    \Pr\left(X(\tau_{i+1})=y\,|\,X(\tau_{i})=x\right) 
+        = \sum_z \exp\left(Q^i\left(\tau_{i+1}-\tau_i\right)\right)_{x,z} \cdot \eta^i_{z,y}
+    .
+\]
+
+If the state spaces in interval $i$ and $i+1$ are the same, and the states do not make random jumps at the transition between the two intervals, this will simply be an identity matrix. Other common cases involves injecting states from a smaller state space into a larger where the states remain essentially the same just in a larger state space, or projecting from a larger state space into a smaller where several states in the larger state space maps to the same states in the smaller.
+
+\section{Interval notation and composition of transition matrices}
+
+When working with this type of CTMC the essential building block is the state transition matrices for single intervals. For interval $i$ let $\interval{i}$ denote this matrix, satisfying $\interval{i}_{\alpha,\beta} = \Pr\left(X(\tau_{i+1})=\beta\,|\,X(\tau_i)=\alpha\right)$. This matrix can be computed as $[i] = \exp\left(Q^{i}\left(\tau_{i+1}-\tau_i\right)\right) \cdot \eta^i$ where the first component is the standard matrix exponentiation needed to build the transition matrix from the rate matrix of the CTMC and the second is the matrix needed to map states from the state space of interval $i$ to the state space of interval $i+1$.
+
+By construction of the CTMC the state spaces of two consecutive intervals matches up, so these matrices can be multiplied together to span several intervals, so 
+\[
+    \Pr\left( X(\tau_{i+k})=\beta \,|\, X(\tau_i)=\alpha \right) =
+    \Big(\interval{i}\cdot\interval{i+1}\cdots\interval{i+k-1}\Big)_{\alpha,\beta}
+\]
+
+We occasionally need to refer to the intervals between two intervals $i<j$. Since this requires a special case when $j=i+1$ we introduce notation for these ``between'' intervals and define
+\begin{equation}
+\label{def:between}
+    \between{i}{j} =
+    \begin{cases}
+        I_j & \mathrm{if}\ j=i+1 \\
+        \interval{i+1}\cdots\interval{i+k-1} & \mathrm{if}\ j=i+k\ \mathrm{and}\ k>1
+    \end{cases}
+\end{equation}
+where $I_j$ is the identity matrix for the state space in interval $j$.
+
+Similarly, when we need to refer to the intervals before interval $i$, which we will refer to by $\upto{i}$, there are special cases that needs to be considered. Notice that since we number the intervals by the indices of the break points there might be an interval before time $\tau_0$ when $\tau_0>0$ which we will then call interval $-1$. We let interval $-1$ go from time zero to time $\tau_0$ and so $\interval{-1}=\exp\left( Q^{-1}\tau_0 \right)\cdot \eta^{-1}$. Handling the various special cases we define $\upto{i}$ as
+\begin{equation}
+\label{def:upto}
+    \upto{i} =
+    \begin{cases}
+        I_0             & \mathrm{if}\ i = 0\ \mathrm{and}\ \tau_0=0 \\
+        \interval{-1}   & \mathrm{if}\ i = 0\ \mathrm{and}\ \tau_0>0 \\
+        \upto{i-1}\cdot\interval{i-1} & \mathrm{if}\ i>0
+    \end{cases}
+\end{equation}
+where the last case handles intervals $i>0$ recursively by going up to $i-1$ and then through $i-1$.
+
+
+\section{Composing transition matrices and computing joint probabilities}
+
+Let $\interval{i}S$ be the transition matrix $\interval{i}$ restricted to the columns representing states in $S$. Likewise let $S\interval{i}$ be the transition matrix restricted to the rows representing states in $S$. For neighbouring intervals these can be combined through matrix-matrix multiplication to make a transition probability matrix for joint probabilities. For intervals $\interval{i}$ and $\interval{i+1}$, $\left(\interval{i} S\right) \cdot \left(S\interval{i+1}\right)$ is the transition probability for going from the start of interval $i$ to the end of interval $i+1$ while being in a state in $S$ when going from the first interval to the second, that is 
+\[
+\Big(\interval{i} S \cdot S\interval{i+1}\Big)_{\alpha,\beta} 
+    = \Pr\left(X(\tau_{i+1})\in S, X(\tau_{i+2})=\beta \,|\, X(\tau_i)=\alpha \right)
+ .
+\]
+
+For transition matrices spanning several intervals this generalises in the obvious way, so $\left(\interval{i\cdots k} S\right) \cdot \left( S\interval{k+1\cdots j}\right)$ is the transition matrix for going from the beginning of interval $i$ to the end of interval $j$ while being in a state in $S$ when going from interval $k$ to interval $k+1$. For convenience of notation we will just write this matrix-matrix multiplication as $\interval{i}S\interval{i+1}$ or $\interval{i\cdots k}S\interval{k+1\cdots j}$.
+
+If the set is a singleton we simply write $x\interval{i}$ instead of $\{x\}\interval{i}$. This is, of course, a row vector. Similarly we could define notation for the corresponding column vectors, $\interval{i}y=\interval{i}\{y\}$.
+
+Quite often we want to sum over sets of states to compute probabilities of being in certain states. For example
+\[
+    \Pr\left(X(\tau_{i+1})\in B \,|\, X(\tau_i)\in A \right)
+     = \sum_{\alpha\in A} \sum_{\beta \in B}\; \interval{i}_{\alpha,\beta}
+    .
+\]
+We will use the notation
+\[
+    {\Sigma A}\,\interval{i}\,{\Sigma B}
+     = \sum_{\alpha\in A} \sum_{\beta \in B}\; \interval{i}_{\alpha,\beta}
+\]
+for this to match the notation above and to put the sum-sign near the beginning or end of the interval we consider. For vectors such as $x\interval{i}$ we use the notation $x\,\interval{i}\,{\Sigma S}$ to mean the sum over the states in $S$, 
+\[
+    x\,[i]\,{\Sigma S} = \sum_{\alpha\in S} \; \interval{i}_{x,\alpha}
+    .
+\]
+
+This notation can be combined in various ways to express joint probabilities. E.g.
+\[
+    \Pr\left( X(\tau_{i+1})\in B, X(\tau_{i+2})\in C \,|\, X(\tau_i)\in A \right)
+    = {\Sigma A}\,\interval{i}\,B\,\interval{i+1}\,{\Sigma C}
+    ,
+\]
+\[
+    \Pr(\left( X(\tau_{i+1})\in S, X(\tau_{i+2})=\beta \,|\, X(\tau_i)=\alpha \right)
+    = \alpha\,\interval{i}\,B\,\interval{i+1}\,\beta,
+\]
+and
+\begin{eqnarray*}
+    \Pr\left(X(\tau_{i+1})\in B, X(\tau_{i+2})\in C, X(\tau_{i+3})\in D \,|\, X(\tau_i)\in A\right)
+    = \\{\Sigma A}\,\interval{i}\,B\,\interval{i+1}\,C\,\interval{i+2}\,{\Sigma D}
+    .
+\end{eqnarray*}
+
+\section{Implementing the CTMC algebra}
+\todo[inline]{Describe how to implement the notation in Python/SciPy and include profiling showing the efficiency.}
+
