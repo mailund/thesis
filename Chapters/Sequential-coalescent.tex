@@ -3,7 +3,7 @@
 
 Coalescence theory provides a very powerful framework for genetics modelling and inference, and the coalescence process with recombination underlies many important analysis tools. Drawing inference from sequences with recombination, however, often involves integrating over all possible ancestries, modelled as the so-called ancestral recombination graph (ARG), a process that rarely scales to more than a few, short sequences due to the complexity and state space size of the ARG. To alleviate this, the \emph{sequential Markov coalescence} approximation assumes that statistical dependencies between local genealogies are Markov~\cite{McVean:2005ho, Marjoram:2006hp,Hobolth:2014cw}.
 
-In this chapter I give a short introduction to the essentials of coalescence theory and coalescent hidden Markov models. In the following chapters I will then describe a framework for semi-automatically constructing CoalHMMs for various demographic models.
+In this chapter, I give a short introduction to the essentials of coalescence theory and coalescent hidden Markov models. In the following chapters I will then describe a framework for semi-automatically constructing CoalHMMs for various demographic models.
 
 \section{Coalescence processes}
 
@@ -26,8 +26,8 @@ The coalescence process can be seen as a transition system where the states are 
 While an individual state only holds information about the lineages at that point in time and not the order in which samples coalesced into those lineages, any path through the transition system---from the initial state with independent samples in each lineage to the final state where all samples are in the same lineage---corresponds to exactly one tree topology, see figure~\ref{fig:coal-no-recomb-transition-system}. The branch lengths of this tree would be determined by the time spent in each state, a quantity determined by the transition rates.
 
 \begin{figure}[tb]
-    \missingfigure{A path through the coalescent transition system and corresponding coalescence trees.}
-  \caption{FIXME}
+    \centering\includegraphics[width=0.7\textwidth]{Chapters/Sequential-coalescent-figures/Transition-system-single-locus}
+  \caption{A transition system for the coalescence process that starts with four lineages, 1, 2, 3, and 4. The system moves through states with four, three, two, and one lineage, moving from top to bottom. The left-most path, moving from $\{\{1\},\{2\},\{3\},\{4\}\}$ through $\{\{1,3\},\{2\},\{4\}\}$ and $\{\{1,3\},\{2,4\}\}$ to $\{\{1,2,3,4\}\}$ corresponds to the tree we would write as \texttt{((1,3),(2,4))} in the Newick format.}
   \label{fig:coal-no-recomb-transition-system}
 \end{figure}
 
@@ -50,7 +50,7 @@ The coalescence system we considered in the previous section---the simple system
 
 When we consider the coalescence process as an instance of a continous time Markov chain we immediately have the framework for modelling more complex demographic scenarios. Structured populations, for example, can be modelled by assigning lineages to different populations, allow migration events to move lineages from one population to another, and only allow lineages to coalesce when within the same population. In general, we can extend lineages with any information we wish, and let them undergo any changes we wish, as long as we can model this as a constant rate we can represent in the matrix $Q$.
 
-It is also possible to model more complex demographics. A simple example could be to allow the coalescence rate to vary over time. This would capture variation in population size in the population being modelled since, as we recall, the rate is the inverse of the (effective) population size: $c=2/\theta$. A very success full application of this is the PSMC method by \citet{Li:2011ez} that does exactly this through a coalescent hidden Markov model. To model variation in coalescence rate in different time periods we would need a rate matrix for each period. Let $Q^i$ denote the matrix for interval $i: [\tau_i,\tau_{i+1})$. Each $Q^i$ would be constructed as in the previous section but would have a coalescence rate specific to interval $i$: $c_i$.
+It is possible to model more complex demographics. A simple example could be to allow the coalescence rate to vary over time. This would capture variation in population size in the population being modelled since, as we recall, the rate is the inverse of the (effective) population size: $c=2/\theta$. A very success full application of this is the PSMC method by \citet{Li:2011ez} that does exactly this through a coalescent hidden Markov model. To model variation in coalescence rate in different time periods we would need a rate matrix for each period. Let $Q^i$ denote the matrix for interval $i: [\tau_i,\tau_{i+1})$. Each $Q^i$ would be constructed as in the previous section but would have a coalescence rate specific to interval $i$: $c_i$.
 
 Since the rate matrix changes over time we cannot simply exponentiate it to get the transition probability matrix when going from time $s$ to time $t$ if $s$ and $t$ are in different time periods, e.g. $s$ in interval $i$ and $t$ in interval $j>i$. If that is the case, however, we can piece together transition probabilities for different intervals. If interval $i$ goes from $\tau_i$ to $\tau_{i+1}$ then the transition matrix for going all the way through interval $i$ is $\exp\left(Q^i(\tau_{i+1}-\tau_i\right)$. Multiplying the transition matrices for two consecutive intervals gives us the probability of going through both:
 \begin{multline*}
@@ -89,9 +89,18 @@ The outcome of this process is no longer a tree but a directed acyclic graph cal
 
 \begin{figure}
  \center
-  \includegraphics[width=\columnwidth]{Chapters/Sequential-coalescent-figures/ARG-and-local-genealogies}
-  \todo[inline]{Use subfigure here instead. Also update it to finite set of nucleotides}
-  \caption{A) An ancestral recombination graph over three sequences, showing two recombinations and B) the corresponding three local genealogies. The example shows the ancestry of three sequences in the case where they have experienced two recombination events, shown in red and green. These recombinations segments the sequences into three regions, shown in blue, orange and purple, each with different tree genealogies.}
+    \begin{subfigure}[t]{0.41\textwidth}
+        \centering
+        \includegraphics[width={0.9\textwidth}]{Chapters/Sequential-coalescent-figures/ARG}
+        \caption{An ancestral recombination graph over three sequences, showing two recombinations.}
+    \end{subfigure}%
+    ~ 
+    \begin{subfigure}[t]{0.55\textwidth}
+        \centering
+        \includegraphics[width={0.9\textwidth}]{Chapters/Sequential-coalescent-figures/Local-genealogies}
+        \caption{The corresponding three local genealogies.}
+    \end{subfigure}%
+  \caption{The example shows the ancestry of three sequences in the case where they have experienced two recombination events, shown in red and green. These recombinations segments the sequences into three regions, shown in blue, orange and purple, each with different tree genealogies.}
   \label{fig:ARG-and-local-genealogies}
 \end{figure}
 
@@ -104,7 +113,7 @@ We will be interested in the ARG as a means to generating local trees only and w
 
 Mutations on lineages can also be considered events in the CTMC, which can occur and modify lineages as the process runs back in time, but typically mutations are put on the coalescence tree or ARG after it is simulated. There, the mutations can simply be put on the genealogy as a Poisson process or be put on inner nodes using a substitution model. The latter approach makes it possible to sum over all possible sequences at internal nodes using standard methods such as Felsenstein's peeling algorithm \cite{Felsenstein_1981} and this way obtain a joint probability distribution for the sequences at the leaves, i.e.\ the present day samples. This distribution depends only on the local tree-genealogies induced by the ARG since the possible nucleotides at any given position only depends on the tree for that given position.
 
-If we denote by $\Theta$ the relevant parameters for the coalescence process, e.g. coalescence rates, migration rates, recombination rates and mutation rates, we can let $f(\G\,|\,\Theta)$ denote the probability density for the process producing the specific genealogy $\G$ and let $f(\A\,|\,\G,\Theta)$ denote the probability that putting mutations on genealogy $\G$ produces the aligned samples $\A$. Typically the alignment probabilities only depends on the mutation rate while the genealogy probabilities is independent of the mutation rate but depends on the coalescence process CTMC and its parameters such as rates (migration, recombination etc.) and time points where it switches between different rate matrices or state spaces.
+If we denote by $\Theta$ the relevant parameters for the coalescence process, e.g. coalescence rates, migration rates, recombination rates, and mutation rates, we can let $f(\G\,|\,\Theta)$ denote the probability density for the process producing the specific genealogy $\G$ and let $f(\A\,|\,\G,\Theta)$ denote the probability that putting mutations on genealogy $\G$ produces the aligned samples $\A$. Typically the alignment probabilities only depends on the mutation rate while the genealogy probabilities is independent of the mutation rate but depends on the coalescence process CTMC and its parameters such as rates (migration, recombination etc.) and time points where it switches between different rate matrices or state spaces.
 
 For demographic inference it is the parameters in $\Theta$ that are of interest rather than the actual underlying genealogy, which is considered a nuisance parameter to be integrated out to get the likelihood
 \[
