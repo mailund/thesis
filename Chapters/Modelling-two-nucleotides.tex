@@ -1,7 +1,7 @@
 \chapter{Modelling the ancestry of two neighbouring nucleotides}
 \label{chap:modelling-2-ARGs}
 
-To build the hidden Markov model transition probabilities we need to construct the joint probability matrix, $J_\Theta(\ell,r)$, of two neighbouring genealogies $\ell$ and $r$. The approach we take is to construct these probabilities using continuous time Markov chains (CTMCs). By specifying how samples of sequences of length two trace their ancestry back in time in a CTMC we can get a probability distribution of all possible genealogies. This chapter covers how we can construct these CTMCs. Chapters~\ref{chap:CTMC-algebra},~\ref{chap:composing-CTMCs}~and~\ref{chap:constructing-coalhmms} will cover how we translate the CTMCs into CoalHMMs.
+To build the hidden Markov model transition probabilities we need to construct the joint probability matrix, $J_\Theta(\ell,r)$, of two neighbouring genealogies $\ell$ and $r$. The approach we take is to construct these probabilities using continuous time Markov chains (CTMCs). By specifying how samples of sequences of length two trace their ancestry back in time in a CTMC we can get a probability distribution of all possible genealogies. This chapter covers how we can construct these CTMCs. Chapters~\ref{chap:composing-CTMCs}~and~\ref{chap:constructing-coalhmms} will cover how we translate the CTMCs into CoalHMMs.
 
 \section{A transition system for tracing ancestry}
 
